@@ -1,0 +1,110 @@
+setup:
+  max_ep_len: 8064
+  duration: 0 # HH:MM or minutes of training before stopping, used if value > 0
+  nb_timesteps: 50_000
+  checkpoint_freq: 10
+  verbose: 0
+  my_log_level: 1
+  storage_path: ./runs
+  folder_name: "l2rpn_case14_50k"
+  experiment_name: "l2rpn_case14_50k"
+  optimize: False
+  num_samples: 1
+  score_metric: evaluation/custom_metrics/grid2op_end_mean
+  grace_period: 500
+#  points_to_evaluate:
+#    num_sgd_iter: 16
+#    sgd_minibatch_size: 64
+#    train_batch_size: 512
+#  result_dir: /Users/ericavandersar/ray_results/Test14 #"" #
+
+debugging:
+  seed: &seed 9
+
+training:
+  checkpoint_trainable_policies_only: True
+  # tunable parameters
+  gamma: 0.99 #!quniform [0.95, 0.99, 0.01] #
+  lr: 0.0001 #!qloguniform [0.0005, 0.005, 0.0001] #
+  vf_loss_coeff: 0.5
+  entropy_coeff: 0.01
+  clip_param: 0.3 # epsilon
+  lambda: 0.95
+  vf_clip_param: 100
+  kl_coeff: 0.2
+  num_sgd_iter: 10
+  sgd_minibatch_size: 128
+  train_batch_size: 512
+  batch_mode: complete_episodes
+  model:
+#    custom_model : linfcn
+    fcnet_hiddens: [256,256,256]
+    fcnet_activation: relu
+  _enable_learner_api: False
+  
+rl_module:
+  _enable_rl_module_api: False
+
+explore:
+  exploration_config:
+    type: StochasticSampling
+
+callbacks:
+  callbacks: !CustomMetricsCallback
+
+framework:
+  framework: torch
+
+multi_agent:
+  policy_mapping_fn: !policy_mapping_fn
+  policies_to_train: ["reinforcement_learning_policy"]
+  count_steps_by: agent_steps
+
+environment:
+  env_config: &env_config_train
+    env_name: l2rpn_case14_sandbox_train
+    action_space: tennet
+    mask: 3
+    lib_dir: C:\Users\tejas\OneDrive\Documents\Major Project\rl4pnc\
+    grid2op_kwargs:
+      # general kwargs
+      reward_class: !AlphaZeroRW
+    seed: *seed
+    rho_threshold: 0.95
+    n_history: 1
+    g2op_input: ['v_l', 'a', 'r', 't']
+    custom_input: [""]
+    danger: 0.9
+    prio: False
+    use_ffw: False
+    reset_topo: 0
+    line_reco: True # Line reconnection when possible
+    line_disc: False # Line disconnection disabled - let RL agent learn
+    penalty_game_over: 0
+    reward_finish: 0
+    curriculum_training: False
+    curriculum_thresholds: [150,300] # used if curriculum_training is True
+
+evaluation:
+  evaluation_interval: 5
+  evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
+  evaluation_duration_unit: episodes
+  always_attach_evaluation_results: True
+#  evaluation_parallel_to_training: True #Currently not working
+  evaluation_num_workers: 6
+  evaluation_config:
+    explore: False,
+    env_config:
+      <<: *env_config_train
+      env_name: l2rpn_case14_sandbox_val # use the validation environment
+      shuffle_scenarios: False
+      prio: False # should always be False
+
+reporting:
+  keep_per_episode_custom_metrics: True
+
+resources:
+  num_learner_workers: 0
+
+rollouts:
+  num_rollout_workers: 10
